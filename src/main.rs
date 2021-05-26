@@ -13,9 +13,11 @@ fn main() {
 
   let mut collect_count = 0;
   let mut play_count = 0;
+	let mut wrong_words = Vec::new();
 
-  let words_file = fs::read_to_string(file_name).expect("failed to read");
+  let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。");
   let words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
+	let abcz = "abcdefghijklmnopqrstuvwxyz";
   let mut rng = thread_rng(); // 乱数発生源
 
   loop {
@@ -23,64 +25,68 @@ fn main() {
     let mut turn = 10;    // 残りのターン
     let mut input_char = HashMap::new();  // 入力した文字
     let target = words_vec[rng.gen_range(0..=words_vec.len())];   // ターゲット
+		target.make_ascii_lowercase();
+
+		if target.len() < 3 || target.len() > 10 || !target.is_ascii() {
+			continue;
+		}
     
     // ゲームのメインループ
     while turn > 0 {
       // print process
       println!("");
-      let collect_flag = print_and_check(target, &input_char);
-      if collect_flag {
-        println!("Collect!!");
-        collect_count += 1;
-        break;
-      }
+      print_word_and_usedch(target, &input_char);
       println!("残り回数：{}", turn);
     
-      // input process
+      // 入力が0文字ならもう一度
+			// それ以外なら先頭を取得
       print!("please input>>");
-      stdout().flush().unwrap();
-      let mut ch = String::new();
-      std::io::stdin().read_line(&mut ch).expect("failed to read.");
-      ch = ch.trim().to_string();
-
+      let ch = read_line();
       if ch.len() < 1 {
         continue;
       }
+			let ch = ch.chars().next().expect("to_charに失敗しました。").clone();
 
-      // check if input has entered
-      let ch = ch.chars().next().expect("failed to to_char").clone();
+      // 初めての入力なら１をセット、それ以外なら1を足す
       if input_char.contains_key(&ch) {
         input_char.insert(ch.clone(), input_char.get(&ch).unwrap()+1);
       } else {
         input_char.insert(ch.clone(), 1);
       }
 
+			// すでに入力済み
       if input_char.get(&ch).unwrap().clone() != 1 {
         continue;
       }
 
-      // check if input has collect
+			// 入力された文字が目標の単語に含まれていたら
       if !target.contains(&ch.to_string()) {
         turn -= 1;
       }
 
-      // 残り回数0のときの終了処理
+			// 正解の場合は終了
+      if is_collect(target, &input_char) {
+        println!("Collect!!");
+        collect_count += 1;
+        break;
+      }
+
+      // ターンを使い果たして終了
       if turn == 0 {
         println!("You lose...");
         println!("The answer is {}.", target);
+				wrong_words.push(target);
         break;
       }
-    }
+    }	// end of ゲームループ
 
     let continue_flag;
-    let mut yesorno = String::new();
+    let mut yesorno;
 
     // 続けますかループ
     loop {
       print!("続けますか？y/n>");
-      stdout().flush().unwrap();
-      std::io::stdin().read_line(&mut yesorno).expect("failed to read.");
-      yesorno = yesorno.trim().to_string();
+      yesorno = read_line();
 
       // yならつづける、それ以外なら終わる。 １文字じゃない場合はもう一度読み取り
       if yesorno.len() == 1 {
@@ -92,29 +98,69 @@ fn main() {
       }
     }
     if !continue_flag {
-      println!("your score is {}/{}/{}", collect_count, play_count-collect_count, (collect_count as f32)/(play_count as f32));
+      println!("あなたのスコア\nwin:{}\nlose:{}\nrate:{}%", collect_count, play_count-collect_count, (collect_count as f32)/(play_count as f32));
+			println!("間違えた単語：");
+			for word in wrong_words {
+				println!("- {}", word);
+			}
       break;
     }
   }
 }
 
-fn print_and_check(target: &str, input_char: &HashMap<char, u32>) -> bool {
+fn read_line() -> String {
+	stdout().flush().unwrap();
+	let mut ch = String::new();
+	std::io::stdin().read_line(&mut ch).expect("標準入力の読み込みに失敗しました。");
+	ch = ch.trim().to_string();
+	ch
+}
+
+fn is_collect(target: &str, input_char: &HashMap<char, u32>) -> bool {
+	for ch in target.chars() {
+		if !input_char.contains_key(&ch) {
+			return false;
+		}
+	}
+	true
+}
+
+// target 目標の単語, input_char これまでに入力された文字
+fn print_word_and_usedch(target: &str, input_char: &HashMap<char, u32>) {
   let mut chars = target.chars();
-  let mut collect_flag = true;
   print!("使われた文字：");
   for ch in input_char.keys() {
     print!("{}", ch);
   }
+
+	// まだ正解していないアルファベットは_
+	// 正解しているアルファベットは表示する
   print!("\n単語：");
-  for _i in 0..target.len() {
+  for _ in 0..target.len() {
     let next = chars.next().unwrap().clone();
     if input_char.contains_key(&next) {
       print!("{}", next);
     } else {
       print!("_");
-      collect_flag = false;
     }
   }
   println!("");
-  collect_flag
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	
+#[test]
+	fn is_collect_test() {
+		let target = &"hello";
+		let target2 = &"world";
+		let mut hash = HashMap::new();
+		for ch in target.chars() {
+			hash.insert(ch.clone(), 1);
+		}
+
+		assert!(is_collect(target, &hash));
+		assert!(!is_collect(target2, &hash));
+	}
 }
