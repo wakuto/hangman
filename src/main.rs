@@ -8,7 +8,7 @@ fn main() {
   let args: Vec<String> = env::args().collect();
   let file_name: &str = match args.len() {
     2 => &args[1],
-    _ => "/home/wakuto/src/2021-prog_enshuu/hangman/words",
+    _ => "./word",
   };
 
   let mut collect_count = 0;
