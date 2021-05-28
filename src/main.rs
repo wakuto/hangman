@@ -17,25 +17,35 @@ fn main() {
 
   let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。");
   let words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
-	let abcz = "abcdefghijklmnopqrstuvwxyz";
   let mut rng = thread_rng(); // 乱数発生源
+
+  let mut renew_count = 0;
 
   loop {
     play_count += 1;
     let mut turn = 10;    // 残りのターン
     let mut input_char = HashMap::new();  // 入力した文字
-    let target = words_vec[rng.gen_range(0..=words_vec.len())];   // ターゲット
-		target.make_ascii_lowercase();
+    let mut raw_target = words_vec[rng.gen_range(0..=words_vec.len())].to_string();   // ターゲット
+    raw_target.make_ascii_lowercase();
+    let target = raw_target;
 
-		if target.len() < 3 || target.len() > 10 || !target.is_ascii() {
-			continue;
-		}
+    if renew_count > words_vec.len() {
+      panic!("適正な単語の取得に失敗しました");
+    }
+
+    // 適正な単語でなければ再生成
+    if !word_check(&target) {
+      renew_count += 1;
+      continue;
+    } else {
+      renew_count = 0;
+    }
     
     // ゲームのメインループ
     while turn > 0 {
       // print process
       println!("");
-      print_word_and_usedch(target, &input_char);
+      print_word_and_usedch(&target, &input_char);
       println!("残り回数：{}", turn);
     
       // 入力が0文字ならもう一度
@@ -65,7 +75,7 @@ fn main() {
       }
 
 			// 正解の場合は終了
-      if is_collect(target, &input_char) {
+      if is_collect(&target, &input_char) {
         println!("Collect!!");
         collect_count += 1;
         break;
@@ -147,6 +157,23 @@ fn print_word_and_usedch(target: &str, input_char: &HashMap<char, u32>) {
   println!("");
 }
 
+fn word_check(word: &str) -> bool {
+  // 長すぎず、短すぎず
+  // ascii以外の文字が含まれていない
+  if word.len() < 3 || word.len() > 10 || !word.is_ascii() {
+    return false;
+  }
+
+	let abcz = "abcdefghijklmnopqrstuvwxyz";
+  // アルファベット以外が含まれない
+  for ch in word.chars() {
+    if !abcz.contains(&ch.to_string()) {
+      return false;
+    }
+  }
+  true
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -163,4 +190,21 @@ mod tests {
 		assert!(is_collect(target, &hash));
 		assert!(!is_collect(target2, &hash));
 	}
+
+#[test]
+  fn word_check_test() {
+    let word1 = &"hello";
+    let word2 = &"hello!";
+    let word3 = &"hello1";
+    let word4 = &"hl";
+    let word5 = &"helloworldhogefugapiyo";
+    let word6 = &"こんにちは";
+    
+    assert!(word_check(word1));
+    assert!(!word_check(word2));
+    assert!(!word_check(word3));
+    assert!(!word_check(word4));
+    assert!(!word_check(word5));
+    assert!(!word_check(word6));
+  }
 }
