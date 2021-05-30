@@ -5,6 +5,9 @@ use std::env;
 use rand::{Rng, thread_rng};
 
 #[derive(Clone, Copy, PartialEq)]
+/// ゲームのモードを表します
+/// * `Normal` - 通常のモード
+/// * `Poor` - 苦手克服モード
 enum Mode {
   Normal,
   Poor,
@@ -151,7 +154,9 @@ fn main() {
   }
 }
 
-fn word_initialize<'a>(words: &'a mut Vec<&str>) -> Vec<&'a str> {
+/// リスト中の文字列のうちアルファベット以外が含まれるものと短すぎたり長すぎたりするものを削除します。
+/// * `words` - 操作対象の文字列のリスト
+fn word_initialize(words: &mut Vec<&str>){
   let mut remove_index = Vec::new();
   for i in 0..words.len() {
     let word = words[i].to_string();
@@ -163,7 +168,6 @@ fn word_initialize<'a>(words: &'a mut Vec<&str>) -> Vec<&'a str> {
   for i in remove_index {
     words.remove(i);
   }
-  words.to_vec()
 }
 
 /// 標準入力から1行読み取って返却します。
@@ -175,7 +179,9 @@ fn read_line() -> String {
 	ch
 }
 
-/// 文字列の構成文字すべてがハッシュマップに含まれるかを返します。
+/// 文字列の構成文字すべてがある文字集合に含まれるかを返します。
+/// * `target` - 検査対象の文字列
+/// * `input_char` - 文字集合 
 fn is_collect(target: &str, input_char: &HashMap<char, bool>) -> bool {
 	for ch in target.chars() {
 		if !input_char.contains_key(&ch) {
@@ -187,6 +193,8 @@ fn is_collect(target: &str, input_char: &HashMap<char, bool>) -> bool {
 
 // target 目標の単語, input_char これまでに入力された文字
 /// 文字列のハッシュマップに含まれる構成文字のみを出力します。
+/// * `target` - 出力対象の文字列
+/// * `input_char` - 出力する文字
 fn print_word_and_usedch(target: &str, input_char: &HashMap<char, bool>) {
   let mut chars = target.chars();
   print!("使われた文字：");
@@ -209,6 +217,7 @@ fn print_word_and_usedch(target: &str, input_char: &HashMap<char, bool>) {
 }
 
 /// 文字列が小文字アルファベットのみから構成されているかを返します。
+/// * `word` - 検査対象の文字列
 fn is_alpha(word: &str) -> bool {
 	let abcz = "abcdefghijklmnopqrstuvwxyz";
   // アルファベット以外が含まれない
@@ -221,6 +230,7 @@ fn is_alpha(word: &str) -> bool {
 }
 
 /// 文字列が長すぎたり短すぎたりしないかを返します。
+/// * `word` - 検査対象の文字列
 fn word_check(word: &str) -> bool {
   // 長すぎず、短すぎず
   // ascii以外の文字が含まれていない
@@ -269,6 +279,13 @@ mod tests {
     assert!(!is_alpha(word2));
     assert!(!is_alpha(word3));
     assert!(!is_alpha(word4));
+  }
+
+#[test]
+  fn word_initialize_test() {
+    let mut vect = vec!["hello", "hello!", "he", "helloworldhogefuga", "こんにちは"];
+    word_initialize(&mut vect);
+    assert_eq!(vec!["hello"], vect);
   }
 
 }
