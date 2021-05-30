@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use linked_hash_set::LinkedHashSet;
 use std::io::{stdout, Write};
 use std::fs;
 use std::env;
@@ -22,7 +22,7 @@ fn main() {
 
   let mut collect_count = 0;
   let mut play_count = 0;
-	let mut wrong_words = HashMap::new();
+	let mut wrong_words = LinkedHashSet::new();
 
   let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。").to_lowercase();
   let mut words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
@@ -66,7 +66,7 @@ fn main() {
 
     play_count += 1;
     let mut turn = 10;    // 残りのターン
-    let mut input_char: HashMap<char, bool> = HashMap::new();  // 入力した文字
+    let mut input_char: LinkedHashSet<char> = LinkedHashSet::new();  // 入力した文字
     let target = match mode {
       Mode::Normal => words_vec[rng.gen_range(0..words_vec.len())].to_string(),
       Mode::Poor => poor_words[rng.gen_range(0..poor_words.len())].to_string(),
@@ -94,10 +94,10 @@ fn main() {
       }
 
       // 初めての入力なら１をセット、それ以外なら1を足す
-      if input_char.contains_key(&ch) {
+      if input_char.contains(&ch) {
         continue;
       }
-      input_char.insert(ch.clone(), true);
+      input_char.insert(ch.clone());
 
 			// 入力された文字が目標の単語に含まれていたら
       if !target.contains(&ch.to_string()) {
@@ -115,7 +115,7 @@ fn main() {
       if turn == 0 {
         println!("You lose...");
         println!("The answer is {}.", target);
-        wrong_words.insert(target.clone(), true);
+        wrong_words.insert(target.clone());
         break;
       }
     }	// end of ゲームループ
@@ -144,7 +144,7 @@ fn main() {
 			println!("rate:{}%", 100.0*(collect_count as f32)/(play_count as f32));
 			println!("間違えた単語：");
       let mut wrong_string = String::new();
-			for word in wrong_words.keys() {
+			for word in &wrong_words {
 				println!("- {}", word);
         wrong_string += &(String::from("\n") + word);
 			}
@@ -182,9 +182,9 @@ fn read_line() -> String {
 /// 文字列の構成文字すべてがある文字集合に含まれるかを返します。
 /// * `target` - 検査対象の文字列
 /// * `input_char` - 文字集合 
-fn is_collect(target: &str, input_char: &HashMap<char, bool>) -> bool {
+fn is_collect(target: &str, input_char: &LinkedHashSet<char>) -> bool {
 	for ch in target.chars() {
-		if !input_char.contains_key(&ch) {
+		if !input_char.contains(&ch) {
 			return false;
 		}
 	}
@@ -195,10 +195,10 @@ fn is_collect(target: &str, input_char: &HashMap<char, bool>) -> bool {
 /// 文字列のハッシュマップに含まれる構成文字のみを出力します。
 /// * `target` - 出力対象の文字列
 /// * `input_char` - 出力する文字
-fn print_word_and_usedch(target: &str, input_char: &HashMap<char, bool>) {
+fn print_word_and_usedch(target: &str, input_char: &LinkedHashSet<char>) {
   let mut chars = target.chars();
   print!("使われた文字：");
-  for ch in input_char.keys() {
+  for ch in input_char {
     print!("{}", ch);
   }
 
@@ -207,7 +207,7 @@ fn print_word_and_usedch(target: &str, input_char: &HashMap<char, bool>) {
   print!("\n単語：");
   for _ in 0..target.len() {
     let next = chars.next().unwrap().clone();
-    if input_char.contains_key(&next) {
+    if input_char.contains(&next) {
       print!("{}", next);
     } else {
       print!("_");
@@ -248,9 +248,9 @@ mod tests {
 	fn is_collect_test() {
 		let target = &"hello";
 		let target2 = &"world";
-		let mut hash = HashMap::new();
+		let mut hash = LinkedHashSet::new();
 		for ch in target.chars() {
-			hash.insert(ch.clone(), true);
+			hash.insert(ch.clone());
 		}
 
 		assert!(is_collect(target, &hash));
