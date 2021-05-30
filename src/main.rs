@@ -4,6 +4,12 @@ use std::fs;
 use std::env;
 use rand::{Rng, thread_rng};
 
+#[derive(Clone, Copy, PartialEq)]
+enum Mode {
+  Normal,
+  Poor,
+}
+
 fn main() {
   let args: Vec<String> = env::args().collect();
   let file_name: &str = match args.len() {
@@ -13,34 +19,56 @@ fn main() {
 
   let mut collect_count = 0;
   let mut play_count = 0;
-	let mut wrong_words = Vec::new();
+	let mut wrong_words = HashMap::new();
 
-  let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。");
-  let words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
+  let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。").to_lowercase();
+  let mut words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
+  word_initialize(&mut words_vec);
+  if words_vec.len() == 0 {
+    println!("単語数が少なすぎます");
+    return;
+  }
   let mut rng = thread_rng(); // 乱数発生源
 
-  let mut renew_count = 0;
+  // 苦手ワードの読み込み
+  let poor_file = match fs::read_to_string("./poor_word") {
+    Ok(word) => word.to_lowercase(),
+    _ => String::new(),
+  };
+  let mut poor_words: Vec<&str> = match poor_file.len() {
+    0 => Vec::new(),
+    _ => poor_file.split('\n').collect(),
+  };
+  word_initialize(&mut poor_words);
 
   loop {
+    // mode select
+    let mut mode: Option<Mode>  = match poor_words.len() {
+      0 => Some(Mode::Normal),
+      _ => None,
+    };
+    while mode == None {
+      println!("通常モード: 1, 苦手克服モード: 2");
+      print!(">");
+      let m = read_line();
+      if m.len() == 1 {
+        mode = match m.chars().nth(0).unwrap() {
+          '1' => Some(Mode::Normal),
+          '2' => Some(Mode::Poor),
+          _ => None,
+        };
+      }
+    }
+    let mode = mode.unwrap();
+
     play_count += 1;
     let mut turn = 10;    // 残りのターン
-    let mut input_char = HashMap::new();  // 入力した文字
-    let mut raw_target = words_vec[rng.gen_range(0..=words_vec.len())].to_string();   // ターゲット
-    raw_target.make_ascii_lowercase();
-    let target = raw_target;
+    let mut input_char: HashMap<char, bool> = HashMap::new();  // 入力した文字
+    let target = match mode {
+      Mode::Normal => words_vec[rng.gen_range(0..words_vec.len())].to_string(),
+      Mode::Poor => poor_words[rng.gen_range(0..poor_words.len())].to_string(),
+    };
 
-    if renew_count > words_vec.len() {
-      panic!("適正な単語の取得に失敗しました");
-    }
-
-    // 適正な単語でなければ再生成
-    if !word_check(&target) {
-      renew_count += 1;
-      continue;
-    } else {
-      renew_count = 0;
-    }
-    
     // ゲームのメインループ
     while turn > 0 {
       // print process
@@ -57,17 +85,16 @@ fn main() {
       }
 			let ch = ch.chars().next().expect("to_charに失敗しました。").clone();
 
-      // 初めての入力なら１をセット、それ以外なら1を足す
-      if input_char.contains_key(&ch) {
-        input_char.insert(ch.clone(), input_char.get(&ch).unwrap()+1);
-      } else {
-        input_char.insert(ch.clone(), 1);
-      }
-
-			// すでに入力済み
-      if input_char.get(&ch).unwrap().clone() != 1 {
+      // 入力がアルファベットでなければ戻る
+      if !is_alpha(&ch.to_string()) {
         continue;
       }
+
+      // 初めての入力なら１をセット、それ以外なら1を足す
+      if input_char.contains_key(&ch) {
+        continue;
+      }
+      input_char.insert(ch.clone(), true);
 
 			// 入力された文字が目標の単語に含まれていたら
       if !target.contains(&ch.to_string()) {
@@ -85,39 +112,61 @@ fn main() {
       if turn == 0 {
         println!("You lose...");
         println!("The answer is {}.", target);
-				wrong_words.push(target);
+        wrong_words.insert(target.clone(), true);
         break;
       }
     }	// end of ゲームループ
 
-    let continue_flag;
+    let mut continue_flag = None;
     let mut yesorno;
 
     // 続けますかループ
-    loop {
+    while continue_flag == None {
       print!("続けますか？y/n>");
       yesorno = read_line();
 
-      // yならつづける、それ以外なら終わる。 １文字じゃない場合はもう一度読み取り
+      // yならつづける、nなら終わる。 それ以外はもう一度読み取り
       if yesorno.len() == 1 {
         continue_flag = match yesorno.chars().nth(0).unwrap() {
-          'y' => true,
-          _ => false,
+          'y' => Some(true),
+          'n' => Some(false),
+          _ => None,
         };
-        break;
       }
     }
-    if !continue_flag {
-      println!("あなたのスコア\nwin:{}\nlose:{}\nrate:{}%", collect_count, play_count-collect_count, (collect_count as f32)/(play_count as f32));
+    if !continue_flag.unwrap() {
+      println!("あなたのスコア");
+			println!("win:{}", collect_count);
+			println!("lose:{}", play_count - collect_count);
+			println!("rate:{}%", 100.0*(collect_count as f32)/(play_count as f32));
 			println!("間違えた単語：");
-			for word in wrong_words {
+      let mut wrong_string = String::new();
+			for word in wrong_words.keys() {
 				println!("- {}", word);
+        wrong_string += &(String::from("\n") + word);
 			}
+      fs::write("poor_word", &wrong_string).expect("poor_wordの書き込みに失敗しました。");
       break;
     }
   }
 }
 
+fn word_initialize<'a>(words: &'a mut Vec<&str>) -> Vec<&'a str> {
+  let mut remove_index = Vec::new();
+  for i in 0..words.len() {
+    let word = words[i].to_string();
+    if !is_alpha(&word) || !word_check(&word) {
+      remove_index.push(i);
+    }
+  }
+  remove_index.reverse();
+  for i in remove_index {
+    words.remove(i);
+  }
+  words.to_vec()
+}
+
+/// 標準入力から1行読み取って返却します。
 fn read_line() -> String {
 	stdout().flush().unwrap();
 	let mut ch = String::new();
@@ -126,7 +175,8 @@ fn read_line() -> String {
 	ch
 }
 
-fn is_collect(target: &str, input_char: &HashMap<char, u32>) -> bool {
+/// 文字列の構成文字すべてがハッシュマップに含まれるかを返します。
+fn is_collect(target: &str, input_char: &HashMap<char, bool>) -> bool {
 	for ch in target.chars() {
 		if !input_char.contains_key(&ch) {
 			return false;
@@ -136,7 +186,8 @@ fn is_collect(target: &str, input_char: &HashMap<char, u32>) -> bool {
 }
 
 // target 目標の単語, input_char これまでに入力された文字
-fn print_word_and_usedch(target: &str, input_char: &HashMap<char, u32>) {
+/// 文字列のハッシュマップに含まれる構成文字のみを出力します。
+fn print_word_and_usedch(target: &str, input_char: &HashMap<char, bool>) {
   let mut chars = target.chars();
   print!("使われた文字：");
   for ch in input_char.keys() {
@@ -157,19 +208,24 @@ fn print_word_and_usedch(target: &str, input_char: &HashMap<char, u32>) {
   println!("");
 }
 
-fn word_check(word: &str) -> bool {
-  // 長すぎず、短すぎず
-  // ascii以外の文字が含まれていない
-  if word.len() < 3 || word.len() > 10 || !word.is_ascii() {
-    return false;
-  }
-
+/// 文字列が小文字アルファベットのみから構成されているかを返します。
+fn is_alpha(word: &str) -> bool {
 	let abcz = "abcdefghijklmnopqrstuvwxyz";
   // アルファベット以外が含まれない
   for ch in word.chars() {
     if !abcz.contains(&ch.to_string()) {
       return false;
     }
+  }
+  true
+}
+
+/// 文字列が長すぎたり短すぎたりしないかを返します。
+fn word_check(word: &str) -> bool {
+  // 長すぎず、短すぎず
+  // ascii以外の文字が含まれていない
+  if word.len() < 3 || word.len() > 10 {
+    return false;
   }
   true
 }
@@ -184,7 +240,7 @@ mod tests {
 		let target2 = &"world";
 		let mut hash = HashMap::new();
 		for ch in target.chars() {
-			hash.insert(ch.clone(), 1);
+			hash.insert(ch.clone(), true);
 		}
 
 		assert!(is_collect(target, &hash));
@@ -193,18 +249,26 @@ mod tests {
 
 #[test]
   fn word_check_test() {
+    let word = &"hello";
+    let word1 = &"hl";
+    let word2 = &"helloworldhogefugapiyo";
+    
+    assert!(word_check(word));
+    assert!(!word_check(word1));
+    assert!(!word_check(word2));
+  }
+
+#[test]
+  fn is_alpha_test() {
     let word1 = &"hello";
     let word2 = &"hello!";
     let word3 = &"hello1";
-    let word4 = &"hl";
-    let word5 = &"helloworldhogefugapiyo";
-    let word6 = &"こんにちは";
-    
-    assert!(word_check(word1));
-    assert!(!word_check(word2));
-    assert!(!word_check(word3));
-    assert!(!word_check(word4));
-    assert!(!word_check(word5));
-    assert!(!word_check(word6));
+    let word4 = &"こんにちは";
+
+    assert!(is_alpha(word1));
+    assert!(!is_alpha(word2));
+    assert!(!is_alpha(word3));
+    assert!(!is_alpha(word4));
   }
+
 }
