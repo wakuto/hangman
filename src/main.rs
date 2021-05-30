@@ -146,8 +146,10 @@ fn main() {
       let mut wrong_string = String::new();
 			for word in &wrong_words {
 				println!("- {}", word);
-        wrong_string += &(String::from("\n") + word);
 			}
+      for word in wrong_words.union(&poor_words.into_iter().map(|x| x.to_string()).collect::<LinkedHashSet<String>>()) {
+        wrong_string += &(String::from("\n") + word);
+      }
       fs::write("poor_word", &wrong_string).expect("poor_wordの書き込みに失敗しました。");
       break;
     }
