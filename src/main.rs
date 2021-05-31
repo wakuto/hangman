@@ -143,12 +143,14 @@ fn main() {
       println!("あなたのスコア");
       println!("win:{}", collect_count);
       println!("lose:{}", play_count - collect_count);
-      println!("rate:{}%", 100.0*(collect_count as f32)/(play_count as f32));
+      let rate = 100.0*(collect_count as f32)/(play_count as f32);
+      println!("rate:{}%", rate);
       println!("間違えた単語：");
       let mut wrong_string = String::new();
       for word in &wrong_words {
         println!("- {}", word);
       }
+      // 苦手単語のファイルへの書き込み
       // poor_wordsをLinkedHashSetに変換
       let poor_hash_set: LinkedHashSet<_> = poor_words.into_iter().map(|x| x.to_string()).collect::<LinkedHashSet<String>>();
       // 正解した単語を引く
@@ -159,6 +161,14 @@ fn main() {
         wrong_string += &(String::from("\n") + word);
       }
       fs::write("poor_word", &wrong_string).expect("poor_wordの書き込みに失敗しました。");
+
+      // 正解率の書き込み
+      let mut rate_file = fs::OpenOptions::new()
+        .create(true).append(true).open("./rate")
+        .expect("rateの読み込みに失敗しました。");
+      rate_file.write_all(format!("{}\n", rate).as_bytes())
+        .expect("rateへの書き込みに失敗しました");
+
       break;
     }
   }
@@ -201,7 +211,6 @@ fn is_collect(target: &str, input_char: &LinkedHashSet<char>) -> bool {
   true
 }
 
-// target 目標の単語, input_char これまでに入力された文字
 /// 文字列のハッシュマップに含まれる構成文字のみを出力します。
 /// * `target` - 出力対象の文字列
 /// * `input_char` - 出力する文字
