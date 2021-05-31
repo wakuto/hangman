@@ -22,7 +22,8 @@ fn main() {
 
   let mut collect_count = 0;
   let mut play_count = 0;
-	let mut wrong_words = LinkedHashSet::new();
+  let mut wrong_words = LinkedHashSet::new();
+  let mut collect_words = LinkedHashSet::new();
 
   let words_file = fs::read_to_string(file_name).expect("単語ファイルの読み込みに失敗しました。").to_lowercase();
   let mut words_vec: Vec<&str> = words_file.split('\n').collect();  // ワード一覧
@@ -80,13 +81,13 @@ fn main() {
       println!("残り回数：{}", turn);
     
       // 入力が0文字ならもう一度
-			// それ以外なら先頭を取得
+      // それ以外なら先頭を取得
       print!("please input>>");
       let ch = read_line();
       if ch.len() < 1 {
         continue;
       }
-			let ch = ch.chars().next().expect("to_charに失敗しました。").clone();
+      let ch = ch.chars().next().expect("to_charに失敗しました。").clone();
 
       // 入力がアルファベットでなければ戻る
       if !is_alpha(&ch.to_string()) {
@@ -99,15 +100,16 @@ fn main() {
       }
       input_char.insert(ch.clone());
 
-			// 入力された文字が目標の単語に含まれていたら
+      // 入力された文字が目標の単語に含まれていたら
       if !target.contains(&ch.to_string()) {
         turn -= 1;
       }
 
-			// 正解の場合は終了
+      // 正解の場合は終了
       if is_collect(&target, &input_char) {
         println!("Collect!!");
         collect_count += 1;
+        collect_words.insert(target.clone());
         break;
       }
 
@@ -118,7 +120,7 @@ fn main() {
         wrong_words.insert(target.clone());
         break;
       }
-    }	// end of ゲームループ
+    }  // end of ゲームループ
 
     let mut continue_flag = None;
     let mut yesorno;
@@ -139,15 +141,21 @@ fn main() {
     }
     if !continue_flag.unwrap() {
       println!("あなたのスコア");
-			println!("win:{}", collect_count);
-			println!("lose:{}", play_count - collect_count);
-			println!("rate:{}%", 100.0*(collect_count as f32)/(play_count as f32));
-			println!("間違えた単語：");
+      println!("win:{}", collect_count);
+      println!("lose:{}", play_count - collect_count);
+      println!("rate:{}%", 100.0*(collect_count as f32)/(play_count as f32));
+      println!("間違えた単語：");
       let mut wrong_string = String::new();
-			for word in &wrong_words {
-				println!("- {}", word);
-			}
-      for word in wrong_words.union(&poor_words.into_iter().map(|x| x.to_string()).collect::<LinkedHashSet<String>>()) {
+      for word in &wrong_words {
+        println!("- {}", word);
+      }
+      // 重複を取る
+      let poor_hash_set: LinkedHashSet<_> = poor_words.into_iter().map(|x| x.to_string()).collect::<LinkedHashSet<String>>();
+      // 正解した単語を引く
+      let poor_hash_set: LinkedHashSet<_> = poor_hash_set.difference(&collect_words).collect();
+      let wrong_hash_set: LinkedHashSet<_> = wrong_words.difference(&collect_words).collect();
+
+      for word in poor_hash_set.union(&wrong_hash_set) {
         wrong_string += &(String::from("\n") + word);
       }
       fs::write("poor_word", &wrong_string).expect("poor_wordの書き込みに失敗しました。");
@@ -174,23 +182,23 @@ fn word_initialize(words: &mut Vec<&str>){
 
 /// 標準入力から1行読み取って返却します。
 fn read_line() -> String {
-	stdout().flush().unwrap();
-	let mut ch = String::new();
-	std::io::stdin().read_line(&mut ch).expect("標準入力の読み込みに失敗しました。");
-	ch = ch.trim().to_string();
-	ch
+  stdout().flush().unwrap();
+  let mut ch = String::new();
+  std::io::stdin().read_line(&mut ch).expect("標準入力の読み込みに失敗しました。");
+  ch = ch.trim().to_string();
+  ch
 }
 
 /// 文字列の構成文字すべてがある文字集合に含まれるかを返します。
 /// * `target` - 検査対象の文字列
 /// * `input_char` - 文字集合 
 fn is_collect(target: &str, input_char: &LinkedHashSet<char>) -> bool {
-	for ch in target.chars() {
-		if !input_char.contains(&ch) {
-			return false;
-		}
-	}
-	true
+  for ch in target.chars() {
+    if !input_char.contains(&ch) {
+      return false;
+    }
+  }
+  true
 }
 
 // target 目標の単語, input_char これまでに入力された文字
@@ -204,8 +212,8 @@ fn print_word_and_usedch(target: &str, input_char: &LinkedHashSet<char>) {
     print!("{}", ch);
   }
 
-	// まだ正解していないアルファベットは_
-	// 正解しているアルファベットは表示する
+  // まだ正解していないアルファベットは_
+  // 正解しているアルファベットは表示する
   print!("\n単語：");
   for _ in 0..target.len() {
     let next = chars.next().unwrap().clone();
@@ -221,7 +229,7 @@ fn print_word_and_usedch(target: &str, input_char: &LinkedHashSet<char>) {
 /// 文字列が小文字アルファベットのみから構成されているかを返します。
 /// * `word` - 検査対象の文字列
 fn is_alpha(word: &str) -> bool {
-	let abcz = "abcdefghijklmnopqrstuvwxyz";
+  let abcz = "abcdefghijklmnopqrstuvwxyz";
   // アルファベット以外が含まれない
   for ch in word.chars() {
     if !abcz.contains(&ch.to_string()) {
@@ -244,20 +252,20 @@ fn word_check(word: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	
+  use super::*;
+  
 #[test]
-	fn is_collect_test() {
-		let target = &"hello";
-		let target2 = &"world";
-		let mut hash = LinkedHashSet::new();
-		for ch in target.chars() {
-			hash.insert(ch.clone());
-		}
+  fn is_collect_test() {
+    let target = &"hello";
+    let target2 = &"world";
+    let mut hash = LinkedHashSet::new();
+    for ch in target.chars() {
+      hash.insert(ch.clone());
+    }
 
-		assert!(is_collect(target, &hash));
-		assert!(!is_collect(target2, &hash));
-	}
+    assert!(is_collect(target, &hash));
+    assert!(!is_collect(target2, &hash));
+  }
 
 #[test]
   fn word_check_test() {
@@ -289,5 +297,4 @@ mod tests {
     word_initialize(&mut vect);
     assert_eq!(vec!["hello"], vect);
   }
-
 }
