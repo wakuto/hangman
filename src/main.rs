@@ -149,7 +149,7 @@ fn main() {
       for word in &wrong_words {
         println!("- {}", word);
       }
-      // 重複を取る
+      // poor_wordsをLinkedHashSetに変換
       let poor_hash_set: LinkedHashSet<_> = poor_words.into_iter().map(|x| x.to_string()).collect::<LinkedHashSet<String>>();
       // 正解した単語を引く
       let poor_hash_set: LinkedHashSet<_> = poor_hash_set.difference(&collect_words).collect();
